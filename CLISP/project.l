@@ -40,7 +40,12 @@
     ( cond 
         ( ( string-equal prompt "start" )
             ( format t "BEGINNING AI SESSION." ) ( sleep 1 ) ( format t "." ) ( sleep 1) ( format t ".~%" ) ( sleep 1 )
-            ( command-reader )
+            ( terpri )
+            ( write-line "----------------------------------------")
+            ( write-line "-- AI INTERACTIVE SESSION COMMENCED" )
+            ( write-line "----------------------------------------")
+            ( terpri )
+            ( ai-command-reader t )
         )
         ( ( string-equal prompt "help" )
             ( write-line "help  -   Get a list of available commands")
@@ -58,7 +63,29 @@
     )
 )
 
+; Handles commands specific to the AI
+( defun ai-command-reader ( initial-session )
 
+    ( cond
+        ( initial-session
+            ( write-line "Hello, and welcome to the AI Interaction Terminal." )
+        )
+    )
+
+    ( terpri )
+    ( format t ">>> " ) ( setf prompt ( read ) )
+
+    ( cond
+        ( ( string-equal prompt "exit")
+            ( write-line "Exiting interaction.  Have a great day.")
+            ( terpri )
+        )
+        ( t
+            ( ai-command-reader nil )
+        )
+    )
+
+)
 
 
 ( startup )
