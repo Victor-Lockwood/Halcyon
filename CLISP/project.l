@@ -1,7 +1,22 @@
 ; I don't know if I'll need this yet but we'll stick it here just in case
+
+; -------------------
+; DEPENDENCIES
+; -------------------
+
 ( load "lp.l" )
  
+
+; -------------------
+; GLOBALS
+; -------------------
+
 ( setf *username* "User" )
+
+
+; -------------------
+; STARTUP
+; -------------------
 
 ; Terminal startup display inspired by that of the ROBCO terminals in the Fallout series
 ( defun startup ()
@@ -9,10 +24,15 @@
     ( write-line "SURGELOCK LABORATORIES INTERACTIVE SPACECRAFT TERMINAL" )
     ( write-line "COPYRIGHT 2023 ALL RIGHTS RESERVED" )
     ( terpri )
-    ( write-line "TYPE \"help\" FOR A LIST OF COMMANDS." )
+    ( write-line "ENTER help FOR A LIST OF COMMANDS." )
 
     ( command-reader )
 )
+
+
+; -------------------
+; COMMAND READERS
+; -------------------
 
 ; For a proper "simulation" we'll stick logic outside the AI system into here
 ( defun command-reader ()
@@ -37,6 +57,7 @@
         )
     )
 )
+
 
 
 
