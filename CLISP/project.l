@@ -1,9 +1,8 @@
-; I don't know if I'll need this yet but we'll stick it here just in case
-
 ; -------------------
 ; DEPENDENCIES
 ; -------------------
 
+; I don't know if I'll need this yet but we'll stick it here just in case
 ( load "lp.l" )
  
 
@@ -12,6 +11,9 @@
 ; -------------------
 
 ( setf *username* "User" )
+
+; This will get changed to something more robust later
+( setf *room-objects* '( WINDOW SWITCH-PANEL STATUS-SCREEN BUTTON-PANEL CUPBOARD DRAWER ) )
 
 
 ; -------------------
@@ -80,7 +82,15 @@
             ( write-line "Exiting interaction.  Have a great day.")
             ( terpri )
         )
+        ( ( string-equal prompt "look" )
+            ( write-line "Here's what's in the room right now: " )
+
+            ;TODO: This display is gonna get more complicated, and when it does we'll move it out
+            ( format t "~A~%" *room-objects* )
+            ( ai-command-reader nil )
+        )
         ( t
+            ( write-line "Sorry, I didn't understand that." )
             ( ai-command-reader nil )
         )
     )
