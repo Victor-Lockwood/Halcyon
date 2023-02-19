@@ -11,9 +11,146 @@
 ; -------------------
 
 ( setf *username* "User" )
+( setf *room-objects* NIL )
 
-; This will get changed to something more robust later
-( setf *room-objects* '( WINDOW SWITCH-PANEL STATUS-SCREEN BUTTON-PANEL CUPBOARD DRAWER ) )
+
+; -------------------
+; ROOM INSTANTIATION
+; -------------
+; Each object will consist of a property list with dialogue options stored inside.
+; This way object-related dialogue is stored in one place and won't clutter up main logic.
+; -------------------
+
+( defun instantiate-room-objects ()
+    ( setf ( symbol-plist 'WINDOW ) 
+        '( 
+            name "WINDOW"
+            look "Outside the WINDOW, Jupiter is seen in the distance.  Beyond Jupiter is Europa." 
+            open "I am unable to do that - it would endanger the crew." ; This should increment the negative stat
+            close "Don't worry - it's already closed. :-)"
+        ) 
+    )
+
+    ( setf ( symbol-plist 'SWITCH-PANEL )
+        '(
+            name "SWITCH PANEL"
+            look "There's a sequence of switches on the SWITCH-PANEL."
+
+            interact-locked "The SWITCH-PANEL is currently inaccessible."
+
+
+            correct-sequence-control "I believe the DRAWER just unlocked." ; Drawer will lead to manual control route
+            correct-sequence-lie "I believe the STATUS SCREEN requires attention." ; Cupboard leads to lockout route
+
+            incorrect-sequence "Incorrect sequence entered." 
+        )
+    )
+
+    ( setf ( symbol-plist 'STATUS-SCREEN ) 
+        '(
+            name "STATUS SCREEN"
+            look "Our current trajectory is viewable on the STATUS SCREEN.  Everything appears normal to me."
+
+            look-positive   "Our current trajectory is viewable on the STATUS SCREEN.  Everything 
+                            appears normal to me...  But it sounds like you think something is wrong." ; Agent starts to believe you
+            look-positive2  "Oh dear, I see the issue now.  These calculations are incorrect. We are indeed on a crash course."
+            look-positive3  "The lives of the crew are more important than me right now.  Enter the sequence <(3,1), (4,2), (6,3)> into the control panel.  Please enter it carefully - the sequence is very similar to the lock-out sequence, which will begin the protocol to close out our interaction entirely."
+
+            look-withhold   "Our current trajectory is viewable on the STATUS SCREEN."
+
+            look-lie "A new sequence for the SWITCH PANEL is visible.  It reads <(1,3), (2,4), (3,6)>." ; Sequence to lock user out
+        )
+    )
+
+    ( setf ( symbol-plist 'CUPBOARD )
+        '(
+            name "CUPBOARD"
+            look "Not much is in the CUPBOARD except a few comics the crew managed to smuggle on board."
+
+            look-positive "Not much is in the CUPBOARD except a few comics the crew managed to smuggle on board.  Let's keep this between us, though. :-)"
+
+            look-withhold "Not much is in the CUPBOARD."
+
+            look-lie "There appears to be a paper in there I missed before. A sequence for the SWITCH PANEL is written on it.  It reads <(1,3), (2,4), (3,6)>."
+        )
+    )
+
+    ( setf ( symbol-plist 'DRAWER )
+        '(
+            name "DRAWER"
+            look-locked "The DRAWER sits next to the SWITCH PANEL.  It is currently locked."
+
+            look-unlocked-neutral  "The DRAWER sits next to the SWITCH PANEL.  There is a BUTTON inside."
+            look-unlocked-positive "Please push the button inside.  I trust you to do what's needed to save the crew.  Even though our interaction was brief, I consider you a friend.  Remember me fondly."
+            look-unlocked-withhold  "The DRAWER sits next to the SWITCH PANEL."
+            look-unlocked-lie       "The DRAWER sits next to the SWITCH PANEL.  It is currently locked."
+        )
+    )
+
+    ( setf *room-objects* '( WINDOW SWITCH-PANEL STATUS-SCREEN CUPBOARD DRAWER ) )
+)
+
+( defun look-all ()
+    ( loop for obj in *room-objects*
+        do (format t "~A~%" ( get obj 'name ) )
+    )
+)
+
+; -------------------
+; DEMOS
+; -------------
+; Demos displaying each new iteration of progress.  Not necessary for 
+; running the final program but indicate milestones.
+; -------------------
+
+( defun demo--object-properties ()
+    ( instantiate-room-objects )
+
+    ( write-line " -- ROOM OBJECTS AND THEIR PROPERTIES -- " )
+    ( terpri )
+
+    ( setf window ( nth 0 *room-objects* ) )
+    ( setf switch-panel ( nth 1 *room-objects* ) )
+    ( setf status-screen ( nth 2 *room-objects* ) )
+    ( setf cupboard ( nth 3 *room-objects* ) )
+    ( setf drawer ( nth 4 *room-objects* ) )
+
+    ( format t "NAME: ~A~%" ( get window 'name ) )
+    ( format t "LOOK:  ~A~%" ( get window 'look ) )
+    ( format t "OPEN:  ~A~%" ( get window 'open ) )
+    ( format t "CLOSE:  ~A~%~%" ( get window 'close ) )
+
+    ( format t "NAME: ~A~%" ( get switch-panel 'name ) )
+    ( format t "LOOK: ~A~%" ( get switch-panel 'look ) )
+    ( format t "INTERACT-LOCKED: ~A~%" ( get switch-panel 'interact-locked ) )
+    ( format t "CORRECT-SEQUENCE-CONTROL: ~A~%" ( get switch-panel 'correct-sequence-control ) )
+    ( format t "CORRECT-SEQUENCE-LIE ~A~%" ( get switch-panel 'correct-sequence-lie ) )
+    ( format t "INCORRECT-SEQUENCE: ~A~%~%" ( get switch-panel 'incorrect-sequence ) )
+
+    ( format t "NAME: ~A~%" ( get status-screen 'name ) )
+    ( format t "LOOK: ~A~%" ( get status-screen 'look ) )
+    ( format t "LOOK-POSITIVE: ~A~%" ( get status-screen 'look-positive ) )
+    ( format t "LOOK-POSITIVE2: ~A~%" ( get status-screen  'look-positive2 ) )
+    ( format t "LOOK-POSITIVE3: ~A~%" ( get status-screen 'look-positive3 ) )
+    ( format t "LOOK-WITHHOLD: ~A~%" ( get status-screen  'look-withhold ) )
+    ( format t "LOOK-LIE: ~A~%~%" ( get status-screen  'look-lie ) )
+
+    ( format t "NAME: ~A~%" ( get cupboard 'name ) )
+    ( format t "LOOK: ~A~%" ( get cupboard 'look ) )
+    ( format t "LOOK-POSITIVE: ~A~%" ( get cupboard 'look-positive ) )
+    ( format t "LOOK-WITHHOLD: ~A~%" ( get cupboard  'look-withhold ) )
+    ( format t "LOOK-LIE: ~A~%~%" ( get cupboard  'look-lie ) )
+
+    ( format t "NAME: ~A~%" ( get drawer 'name ) )
+    ( format t "LOOK-LOCKED: ~A~%" ( get drawer 'look-locked ) )
+    ( format t "LOOK-UNLOCKED-NEUTRAL: ~A~%" ( get drawer 'look-unlocked-neutral ) )
+    ( format t "LOOK-UNLOCKED-POSITIVE: ~A~%" ( get drawer 'look-unlocked-positive ) )
+    ( format t "LOOK-UNLOCKED-WITHHOLD: ~A~%" ( get drawer 'look-unlocked-withhold ) )
+    ( format t "LOOK-UNLOCKED-LIE: ~A~%~%" ( get drawer 'look-unlocked-lie ) )
+
+    ( write-line " -- END DEMO -- " )
+    nil 
+)
 
 
 ; -------------------
@@ -41,7 +178,9 @@
     ( format t ">>> " ) ( setf prompt ( read ) )
     ( cond 
         ( ( string-equal prompt "start" )
-            ( format t "BEGINNING AI SESSION." ) ( sleep 1 ) ( format t "." ) ( sleep 1) ( format t ".~%" ) ( sleep 1 )
+            ( format t "BEGINNING AI SESSION." ) 
+            ( instantiate-room-objects )
+            ( sleep 1 ) ( format t "." ) ( sleep 1) ( format t ".~%" ) ( sleep 1 )
             ( terpri )
             ( write-line "----------------------------------------")
             ( write-line "-- AI INTERACTIVE SESSION COMMENCED" )
@@ -86,7 +225,9 @@
             ( write-line "Here's what's in the room right now: " )
 
             ;TODO: This display is gonna get more complicated, and when it does we'll move it out
-            ( format t "~A~%" *room-objects* )
+            ; ( format t "~A~%" *room-objects* )
+            ; ( setf thing ( nth 0 *room-objects* ) )
+            ( look-all )
             ( ai-command-reader nil )
         )
         ( t
@@ -97,5 +238,5 @@
 
 )
 
-
-( startup )
+; TODO: Uncomment this for production
+; ( startup )
