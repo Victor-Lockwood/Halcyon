@@ -4,6 +4,7 @@
 
 ; I don't know if I'll need this yet but we'll stick it here just in case
 ( load "lp.l" )
+( ql:quickload "split-sequence" ) ; Found this via https://stackoverflow.com/questions/15393797/lisp-splitting-input-into-separate-strings
  
 
 ; -------------------
@@ -78,7 +79,7 @@
     ( setf ( symbol-plist 'DRAWER )
         '(
             name "DRAWER"
-            look-locked "The DRAWER sits next to the SWITCH PANEL.  It is currently locked."
+            look "The DRAWER sits next to the SWITCH PANEL.  It is currently locked."
 
             look-unlocked-neutral  "The DRAWER sits next to the SWITCH PANEL.  There is a BUTTON inside."
             look-unlocked-positive "Please push the button inside.  I trust you to do what's needed to save the crew.  Even though our interaction was brief, I consider you a friend.  Remember me fondly."
@@ -96,6 +97,20 @@
     )
 )
 
+
+; -------------------
+; HELPER FUNCTIONS
+; -------------------
+
+; I'm only tokenizing with a space as a delimiter - this makes it a bit less of a mouthful
+( defun get-tokenized-string ( input )
+    ( split-sequence:SPLIT-SEQUENCE #\Space input )
+)
+
+; Also a mouthful, would rather shrink it down
+( defun get-token-from-position ( input position )
+    ( read-from-string ( nth position input ) )
+)
 
 
 ; -------------------
@@ -159,7 +174,10 @@
     )
 
     ( terpri )
-    ( format t ">>> " ) ( setf prompt ( read ) )
+    ( format t ">>> " ) ( setf prompt ( read-line ) )
+
+    ; Uncomment for debug purposes
+    ;( format t "~A~%" prompt )
 
     ( cond
         ( ( string-equal prompt "exit")
@@ -169,10 +187,13 @@
         ( ( string-equal prompt "look" )
             ( write-line "Here's what's in the room right now: " )
 
-            ;TODO: This display is gonna get more complicated, and when it does we'll move it out
-            ; ( format t "~A~%" *room-objects* )
-            ; ( setf thing ( nth 0 *room-objects* ) )
             ( look-all )
+            ( ai-command-reader nil )
+        )
+        ( ( search "look" prompt )
+            ( setf tokenized-prompt ( get-tokenized-string prompt ) )
+
+            ( format t "~A~%" (  get ( get-token-from-position tokenized-prompt 1 ) 'look ) )
             ( ai-command-reader nil )
         )
         ( t
