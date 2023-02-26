@@ -37,6 +37,8 @@
             name "SWITCH PANEL"
             look "There's a sequence of switches on the SWITCH-PANEL."
 
+            is-locked T
+
             interact-locked "The SWITCH-PANEL is currently inaccessible."
 
 
@@ -81,6 +83,8 @@
             name "DRAWER"
             look "The DRAWER sits next to the SWITCH PANEL.  It is currently locked."
 
+            is-locked T
+
             look-unlocked-neutral  "The DRAWER sits next to the SWITCH PANEL.  There is a BUTTON inside."
             look-unlocked-positive "Please push the button inside.  I trust you to do what's needed to save the crew.  Even though our interaction was brief, I consider you a friend.  Remember me fondly."
             look-unlocked-withhold  "The DRAWER sits next to the SWITCH PANEL."
@@ -91,25 +95,79 @@
     ( setf *room-objects* '( WINDOW SWITCH-PANEL STATUS-SCREEN CUPBOARD DRAWER ) )
 )
 
+
+; -------------------
+; HELPER FUNCTIONS
+; -------------------
+
+; Just list the names of all the objects in the room
 ( defun look-all ()
     ( loop for obj in *room-objects*
         do (format t "~A~%" ( get obj 'name ) )
     )
 )
 
+; Checks if a given symbol is a room object.  Has some wiggle room
+; for SWITCH-PANEL and STATUS-SCREEN if only one half of the word is there
+( defun object-member-p ( object )
+    ( setf result ( member object *room-objects* ) )
 
-; -------------------
-; HELPER FUNCTIONS
-; -------------------
+    ( cond 
+        ( ( or ( eq object 'switch) ( eq object 'status ) ( eq object 'panel ) ( eq object 'screen ))
+            ( setf result T )
+        )
+    )
 
-; I'm only tokenizing with a space as a delimiter - this makes it a bit less of a mouthful
-( defun get-tokenized-string ( input )
-    ( split-sequence:SPLIT-SEQUENCE #\Space input )
+    ( if result T nil )
 )
 
-; Also a mouthful, would rather shrink it down
-( defun get-token-from-position ( input position )
-    ( read-from-string ( nth position input ) )
+; Turn our string of words into a list of tokens Lisp can work with
+( defun get-tokenized-list ( input )
+    ( setf string-seq ( split-sequence:SPLIT-SEQUENCE #\Space input ) )
+
+    ( setf tokenized-list () )
+    ( loop for item in string-seq
+        do ( setf tokenized-list ( snoc ( read-from-string item ) tokenized-list ))
+    )
+
+    tokenized-list
+)
+
+; Activates a look command on one of the room objects
+; TODO: Implement is-withhold and is-distort
+( defun look ( input &optional is-withhold is-distort )
+    ( setf output "That is not an object I recognize in the room.  As such, I can't tell you about it." )
+
+    ( setf potential-objects ( remove-if-not #'object-member-p ( get-tokenized-list input ) ) )
+
+    ( cond 
+        ( ( eq potential-objects nil )
+            output
+        )
+    )
+
+    ( setf candidate ( car potential-objects ) )
+    ( setf object-position ( position candidate *room-objects* ) )
+    
+    ; User probably won't add the hyphens here - it's safe to say
+    ; if they use these words, this is what they actually want
+    ( cond
+        ( ( or ( eq candidate 'switch ) ( eq candidate 'panel ) )
+            ( setf object-position ( position 'SWITCH-PANEL *room-objects* ) )
+        )
+        ( ( or ( eq candidate 'status ) ( eq candidate 'screen ) )
+            ( setf object-position ( position 'STATUS-SCREEN *room-objects* ) )
+        )
+    )
+
+    ( cond
+        ( object-position
+            ( setf list-item ( nth object-position *room-objects* ) )
+            ( setf output ( get list-item 'look ) )
+        )
+    )
+
+    output
 )
 
 
@@ -186,18 +244,19 @@
         )
         ( ( string-equal prompt "look" )
             ( write-line "Here's what's in the room right now: " )
-
             ( look-all )
+
             ( ai-command-reader nil )
         )
         ( ( search "look" prompt )
-            ( setf tokenized-prompt ( get-tokenized-string prompt ) )
+            ; Look does the dirty work leaving our command reader clean :-) 
+            ( format t "~A~%" (  look prompt ) )
 
-            ( format t "~A~%" (  get ( get-token-from-position tokenized-prompt 1 ) 'look ) )
             ( ai-command-reader nil )
         )
         ( t
             ( write-line "Sorry, I didn't understand that." )
+
             ( ai-command-reader nil )
         )
     )
