@@ -121,10 +121,6 @@
     ( if result T nil )
 )
 
-( defun punctuation-p ( character )
-    ( if ( member character '( #\, #\! #\? #\. #\; ) ) T nil )
-)
-
 ; Turn our string of words into a list of tokens Lisp can work with
 ( defun get-tokenized-list ( input )
     ; Clears out punctuation from the string
