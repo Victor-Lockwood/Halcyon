@@ -129,7 +129,7 @@
 ( defun get-tokenized-list ( input )
     ; Clears out punctuation from the string
     ( setf cleaned-string ( remove-if ( lambda ( character )( if ( member character '( #\, #\! #\? #\. #\; ) ) T nil )) input ) )
-    
+
     ( setf string-seq ( split-sequence:SPLIT-SEQUENCE #\Space cleaned-string ) )
 
     ( setf tokenized-list () )
