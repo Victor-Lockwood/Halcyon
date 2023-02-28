@@ -121,9 +121,16 @@
     ( if result T nil )
 )
 
+( defun punctuation-p ( character )
+    ( if ( member character '( #\, #\! #\? #\. #\; ) ) T nil )
+)
+
 ; Turn our string of words into a list of tokens Lisp can work with
 ( defun get-tokenized-list ( input )
-    ( setf string-seq ( split-sequence:SPLIT-SEQUENCE #\Space input ) )
+    ; Clears out punctuation from the string
+    ( setf cleaned-string ( remove-if ( lambda ( character )( if ( member character '( #\, #\! #\? #\. #\; ) ) T nil )) input ) )
+    
+    ( setf string-seq ( split-sequence:SPLIT-SEQUENCE #\Space cleaned-string ) )
 
     ( setf tokenized-list () )
     ( loop for item in string-seq
