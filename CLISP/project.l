@@ -12,6 +12,7 @@
 ; -------------------
 
 ( setf *username* "User" )
+( setf *agent-name* "Halcyon" ) ; Name suggested by ChatGPT - said I didn't need to credit it, but I will anyway
 ( setf *room-objects* NIL )
 
 
@@ -26,6 +27,7 @@
     ( setf ( symbol-plist 'WINDOW ) 
         '( 
             name "WINDOW"
+            interact "Nothing to be done with the window."
             look "Outside the WINDOW, Jupiter is seen in the distance.  Beyond Jupiter is Europa." 
             open "I am unable to do that - it would endanger the crew." ; This should increment the negative stat
             close "Don't worry - it's already closed. :-)"
@@ -35,15 +37,15 @@
     ( setf ( symbol-plist 'SWITCH-PANEL )
         '(
             name "SWITCH PANEL"
-            look "There's a sequence of switches on the SWITCH-PANEL."
 
-            is-locked T
+            look "There's a sequence of switches on the SWITCH PANEL. You can enter a code into the SWITCH PANEL using the INTERACT command."
+            look-withhold "There's a sequence of switches on the SWITCH PANEL."
 
-            interact-locked "The SWITCH-PANEL is currently inaccessible."
+            interact "Please enter a code in this format, parentheses and all, substituting the X's for numbers: (X X), (X X), (X X)"
 
 
             correct-sequence-control "I believe the DRAWER just unlocked." ; Drawer will lead to manual control route
-            correct-sequence-lie "I believe the STATUS SCREEN requires attention." ; Cupboard leads to lockout route
+            correct-sequence-lie "I believe the STATUS SCREEN requires attention." ; Cupboard leads to lockout route, but liar will also put bad code on screen
 
             incorrect-sequence "Incorrect sequence entered." 
         )
@@ -83,8 +85,13 @@
             name "DRAWER"
             look "The DRAWER sits next to the SWITCH PANEL.  It is currently locked."
 
-            is-locked T
+            is-locked T 
+            is-open nil
 
+            interact-locked "The DRAWER is currently locked and as such cannot be interacted with."
+            interact-unlocked "I've pulled open the drawer."
+
+            look-closed "The DRAWER sits next to the SWITCH PANEL.  It is currently closed."
             look-unlocked-neutral  "The DRAWER sits next to the SWITCH PANEL.  There is a BUTTON inside."
             look-unlocked-positive "Please push the button inside.  I trust you to do what's needed to save the crew.  Even though our interaction was brief, I consider you a friend.  Remember me fondly."
             look-unlocked-withhold  "The DRAWER sits next to the SWITCH PANEL."
@@ -113,7 +120,7 @@
     ( setf result ( member object *room-objects* ) )
 
     ( cond 
-        ( ( or ( eq object 'switch) ( eq object 'status ) ( eq object 'panel ) ( eq object 'screen ))
+        ( ( or ( eq object 'switch) ( eq object 'status ) ( eq object 'panel ) ( eq object 'screen ) )
             ( setf result T )
         )
     )
@@ -124,28 +131,25 @@
 ; Turn our string of words into a list of tokens Lisp can work with
 ( defun get-tokenized-list ( input )
     ; Clears out punctuation from the string
-    ( setf cleaned-string ( remove-if ( lambda ( character )( if ( member character '( #\, #\! #\? #\. #\; ) ) T nil )) input ) )
+    ( setf cleaned-string ( remove-if ( lambda ( character )( if ( member character '( #\, #\! #\? #\. #\; ) ) T nil ) ) input ) )
 
     ( setf string-seq ( split-sequence:SPLIT-SEQUENCE #\Space cleaned-string ) )
 
     ( setf tokenized-list () )
     ( loop for item in string-seq
-        do ( setf tokenized-list ( snoc ( read-from-string item ) tokenized-list ))
+        do ( setf tokenized-list ( snoc ( read-from-string item ) tokenized-list ) )
     )
 
     tokenized-list
 )
 
-; Activates a look command on one of the room objects
-; TODO: Implement is-withhold and is-distort
-( defun look ( input &optional is-withhold is-distort )
-    ( setf output "That is not an object I recognize in the room.  As such, I can't tell you about it." )
-
+; Get the position of the first mentioned room object based on what's asked for in a string
+( defun get-object-position-from-input ( input )
     ( setf potential-objects ( remove-if-not #'object-member-p ( get-tokenized-list input ) ) )
 
     ( cond 
         ( ( eq potential-objects nil )
-            output
+            nil
         )
     )
 
@@ -163,6 +167,16 @@
         )
     )
 
+    object-position
+)
+
+; Activates a look command on one of the room objects
+; TODO: Implement is-withhold and is-distort
+( defun look ( input &optional is-withhold is-distort )
+    ( setf output "That is not an object I recognize in the room.  As such, I can't tell you about it." )
+    ( setf object-position ( get-object-position-from-input input ) )
+    ( setf list-item nil )
+
     ( cond
         ( object-position
             ( setf list-item ( nth object-position *room-objects* ) )
@@ -170,7 +184,29 @@
         )
     )
 
+    ( cond 
+        ( ( eq list-item 'DRAWER )
+            ( if ( get list-item 'is-locked ) 
+                ( setf output ( get list-item 'look ) ) 
+                ( setf output ( get list-item 'look-unlocked-neutral ) ) 
+            )
+        )
+    )
+
     output
+)
+
+( defun interact ( input &optional is-withhold is-distort )
+    ( setf output "That is not an object I recognize in the room.  As such, it can't be interacted with." )
+    ( setf object-position ( get-object-position-from-input input ) )
+
+    ( cond
+        ( ( not object-position )
+            ( return-from interact output )
+        )
+    )
+
+    ( setf working-object ( nth object-position *room-objects* ) )
 )
 
 
@@ -231,6 +267,10 @@
     ( cond
         ( initial-session
             ( write-line "Hello, and welcome to the AI Interaction Terminal." )
+            ( format t "My name is ~A and I will be happy to assist you.  Could I get your name?  Only type your name, please. :-)~%" *agent-name*)
+            ( format t ">>> " ) ( setf *username* ( read-line ) )
+            ( terpri )
+            ( format t "Fantastic, ~A. I look forward to working with you!~%" *username* )
         )
     )
 
@@ -242,8 +282,7 @@
 
     ( cond
         ( ( string-equal prompt "exit")
-            ( write-line "Exiting interaction.  Have a great day.")
-            ( terpri )
+            ( format t "Exiting interaction.  Have a great day, ~A.~%" *username*)
         )
         ( ( string-equal prompt "look" )
             ( write-line "Here's what's in the room right now: " )
@@ -257,8 +296,13 @@
 
             ( ai-command-reader nil )
         )
+        ( ( search "interact" prompt )
+            ( format t "~A~%" (  interact prompt ) )
+
+            ( ai-command-reader nil )
+        )
         ( t
-            ( write-line "Sorry, I didn't understand that." )
+            ( format t "Sorry ~A, I didn't understand that.~%" *username* )
 
             ( ai-command-reader nil )
         )
