@@ -196,6 +196,7 @@
     output
 )
 
+; TODO: Finish this
 ( defun interact ( input &optional is-withhold is-distort )
     ( setf output "That is not an object I recognize in the room.  As such, it can't be interacted with." )
     ( setf object-position ( get-object-position-from-input input ) )
