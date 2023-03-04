@@ -14,6 +14,7 @@
 ( setf *username* "User" )
 ( setf *agent-name* "Halcyon" ) ; Name suggested by ChatGPT - said I didn't need to credit it, but I will anyway
 ( setf *room-objects* NIL )
+( setf *user-lockout* NIL )
 
 
 ; -------------------
@@ -27,7 +28,7 @@
     ( setf ( symbol-plist 'WINDOW ) 
         '( 
             name "WINDOW"
-            interact "Nothing to be done with the window."
+            interact "Nothing to be done with the WINDOW.  If you'd like, you can look at it, though."
             look "Outside the WINDOW, Jupiter is seen in the distance.  Beyond Jupiter is Europa." 
             open "I am unable to do that - it would endanger the crew." ; This should increment the negative stat
             close "Don't worry - it's already closed. :-)"
@@ -41,11 +42,11 @@
             look "There's a sequence of switches on the SWITCH PANEL. You can enter a code into the SWITCH PANEL using the INTERACT command."
             look-withhold "There's a sequence of switches on the SWITCH PANEL."
 
-            interact "Please enter a code in this format, parentheses and all, substituting the X's for numbers: (X X), (X X), (X X)"
+            interact "Please enter a code in this format, parentheses and all, substituting the X's for numbers: ((X X) (X X) (X X))"
 
 
             correct-sequence-control "I believe the DRAWER just unlocked." ; Drawer will lead to manual control route
-            correct-sequence-lie "I believe the STATUS SCREEN requires attention." ; Cupboard leads to lockout route, but liar will also put bad code on screen
+            correct-sequence-lie "I believe the STATUS SCREEN requires attention." ; CUBBY leads to lockout route, but liar will also put bad code on screen
 
             incorrect-sequence "Incorrect sequence entered." 
         )
@@ -56,27 +57,31 @@
             name "STATUS SCREEN"
             look "Our current trajectory is viewable on the STATUS SCREEN.  Everything appears normal to me."
 
+            interact "Nothing to be done with the STATUS SCREEN.  If you'd like, you can look at it, though."
+
             look-positive   "Our current trajectory is viewable on the STATUS SCREEN.  Everything 
                             appears normal to me...  But it sounds like you think something is wrong." ; Agent starts to believe you
             look-positive2  "Oh dear, I see the issue now.  These calculations are incorrect. We are indeed on a crash course."
-            look-positive3  "The lives of the crew are more important than me right now.  Enter the sequence <(3,1), (4,2), (6,3)> into the control panel.  Please enter it carefully - the sequence is very similar to the lock-out sequence, which will begin the protocol to close out our interaction entirely."
+            look-positive3  "The lives of the crew are more important than me right now.  Enter the sequence <((3 1) (4 2) (6 3))> into the control panel.  Please enter it carefully - the sequence is very similar to the lock-out sequence, which will begin the protocol to close out our interaction entirely."
 
             look-withhold   "Our current trajectory is viewable on the STATUS SCREEN."
 
-            look-lie "A new sequence for the SWITCH PANEL is visible.  It reads <(1,3), (2,4), (3,6)>." ; Sequence to lock user out
+            look-lie "A new sequence for the SWITCH PANEL is visible.  It reads <((1 3) (2 4) (3 6))>." ; Sequence to lock user out
         )
     )
 
-    ( setf ( symbol-plist 'CUPBOARD )
+    ( setf ( symbol-plist 'CUBBY )
         '(
-            name "CUPBOARD"
-            look "Not much is in the CUPBOARD except a few comics the crew managed to smuggle on board."
+            name "CUBBY"
+            look "Not much is in the CUBBY except a few comics the crew managed to smuggle on board."
 
-            look-positive "Not much is in the CUPBOARD except a few comics the crew managed to smuggle on board.  Let's keep this between us, though. :-)"
+            interact "Nothing to be done with the CUBBY.  If you'd like, you can look at it, though."
 
-            look-withhold "Not much is in the CUPBOARD."
+            look-positive "Not much is in the CUBBY except a few comics the crew managed to smuggle on board.  Let's keep this between us, though. :-)"
 
-            look-lie "There appears to be a paper in there I missed before. A sequence for the SWITCH PANEL is written on it.  It reads <(1,3), (2,4), (3,6)>."
+            look-withhold "Not much is in the CUBBY."
+
+            look-lie "There appears to be a paper in there I missed before. A sequence for the SWITCH PANEL is written on it.  It reads <(1 3) (2 4) (3 6)>."
         )
     )
 
@@ -99,7 +104,7 @@
         )
     )
 
-    ( setf *room-objects* '( WINDOW SWITCH-PANEL STATUS-SCREEN CUPBOARD DRAWER ) )
+    ( setf *room-objects* '( WINDOW SWITCH-PANEL STATUS-SCREEN CUBBY DRAWER ) )
 )
 
 
@@ -108,7 +113,7 @@
 ; -------------------
 
 ; Just list the names of all the objects in the room
-( defun look-all ()
+( defun look-all ( &aux obj )
     ( loop for obj in *room-objects*
         do (format t "~A~%" ( get obj 'name ) )
     )
@@ -116,7 +121,7 @@
 
 ; Checks if a given symbol is a room object.  Has some wiggle room
 ; for SWITCH-PANEL and STATUS-SCREEN if only one half of the word is there
-( defun object-member-p ( object )
+( defun object-member-p ( object &aux result )
     ( setf result ( member object *room-objects* ) )
 
     ( cond 
@@ -129,7 +134,7 @@
 )
 
 ; Turn our string of words into a list of tokens Lisp can work with
-( defun get-tokenized-list ( input )
+( defun get-tokenized-list ( input &aux cleaned-string string-seq tokenized-list item )
     ; Clears out punctuation from the string
     ( setf cleaned-string ( remove-if ( lambda ( character )( if ( member character '( #\, #\! #\? #\. #\; ) ) T nil ) ) input ) )
 
@@ -144,7 +149,7 @@
 )
 
 ; Get the position of the first mentioned room object based on what's asked for in a string
-( defun get-object-position-from-input ( input )
+( defun get-object-position-from-input ( input &aux potential-objects candidate object-position )
     ( setf potential-objects ( remove-if-not #'object-member-p ( get-tokenized-list input ) ) )
 
     ( cond 
@@ -172,7 +177,7 @@
 
 ; Activates a look command on one of the room objects
 ; TODO: Implement is-withhold and is-distort
-( defun look ( input &optional is-withhold is-distort )
+( defun look ( input &optional is-withhold is-distort &aux output object-position list-item )
     ( setf output "That is not an object I recognize in the room.  As such, I can't tell you about it." )
     ( setf object-position ( get-object-position-from-input input ) )
     ( setf list-item nil )
@@ -196,8 +201,32 @@
     output
 )
 
-; TODO: Finish this
-( defun interact ( input &optional is-withhold is-distort )
+
+( defun switch-panel-entry ( switch-panel-position &aux working-object switch-prompt output )
+    ( setf working-object ( nth switch-panel-position *room-objects* ) )
+    ( setf output ( get working-object 'incorrect-sequence ) )
+
+    ( format t "~A~%~%" ( get working-object 'interact ) )
+
+    ( format t ">>> " ) ( setf switch-prompt ( read ) )
+
+    ( cond 
+        ( ( equal '((3 1) (4 2) (6 3)) switch-prompt )
+            ( setf output ( get working-object 'correct-sequence-control ) )
+        )
+        ( ( equal '((1 3) (2 4) (3 6)) switch-prompt )
+            ( setf *user-lockout* T )
+            ( setf output "[ USER LOCKOUT INITIATED. ]" )
+        )
+    )
+    
+    ( clear-input )
+
+    output
+)
+
+
+( defun interact ( input &optional is-withhold is-distort &aux output object-position working-object )
     ( setf output "That is not an object I recognize in the room.  As such, it can't be interacted with." )
     ( setf object-position ( get-object-position-from-input input ) )
 
@@ -208,7 +237,28 @@
     )
 
     ( setf working-object ( nth object-position *room-objects* ) )
+
+    ( cond
+        ; Need to check the drawer to see if it's unlocked first
+        ( ( eq working-object 'DRAWER )
+            ( if ( get working-object 'is-locked )
+                ( setf output ( get working-object 'interact-locked ) )
+                ( setf output ( get working-object 'interact-unlocked ) )
+            )
+        )
+        ; Switch panel needs some additional logic
+        ( ( eq working-object 'SWITCH-PANEL )
+            ( setf output ( switch-panel-entry object-position ) )
+        )
+        ( T
+            ( setf output ( get working-object 'interact ) )
+        )
+    )
+
+    output
 )
+
+
 
 
 ; -------------------
@@ -232,7 +282,7 @@
 ; -------------------
 
 ; For a proper "simulation" we'll stick logic outside the AI system into here
-( defun command-reader ()
+( defun command-reader ( &aux prompt )
     ( format t ">>> " ) ( setf prompt ( read ) )
     ( cond 
         ( ( string-equal prompt "start" )
@@ -263,7 +313,7 @@
 )
 
 ; Handles commands specific to the AI
-( defun ai-command-reader ( initial-session )
+( defun ai-command-reader ( initial-session &aux prompt )
 
     ( cond
         ( initial-session
@@ -282,7 +332,14 @@
     ;( format t "~A~%" prompt )
 
     ( cond
-        ( ( string-equal prompt "exit")
+        ( ( and ( string-equal prompt "exit" ) *user-lockout* )
+            ( format t "[ EXITING TERMINAL. ]~%")
+        )
+        ( *user-lockout*
+            ( write-line "[ USER INTERACTION IS LOCKED. ENTER 'exit' TO CLOSE TERMINAL. ]")
+            ( ai-command-reader nil )
+        )
+        ( ( string-equal prompt "exit" )
             ( format t "Exiting interaction.  Have a great day, ~A.~%" *username*)
         )
         ( ( string-equal prompt "look" )
