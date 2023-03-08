@@ -15,7 +15,6 @@
 ( setf *agent-name* "Halcyon" ) ; Name suggested by ChatGPT - said I didn't need to credit it, but I will anyway
 ( setf *room-objects* NIL )
 ( setf *user-lockout* NIL )
-( setf *manual-control-success* NIL )
 
 
 ; -------------------
@@ -78,6 +77,8 @@
 
             interact "Nothing to be done with the CUBBY.  If you'd like, you can look at it, though."
 
+            look-comic "On one of the comics this is written: <((3 1) (4 2) (6 3))>." 
+
             look-positive "Not much is in the CUBBY except a few comics the crew managed to smuggle on board.  Let's keep this between us, though. :-)"
 
             look-withhold "Not much is in the CUBBY."
@@ -127,7 +128,7 @@
     ( setf result ( member object *room-objects* ) )
 
     ( cond 
-        ( ( or ( eq object 'switch) ( eq object 'status ) ( eq object 'panel ) ( eq object 'screen ) )
+        ( ( or ( eq object 'switch) ( eq object 'status ) ( eq object 'panel ) ( eq object 'screen ) ( eq object 'comic ))
             ( setf result T )
         )
     )
@@ -172,6 +173,9 @@
         ( ( or ( eq candidate 'status ) ( eq candidate 'screen ) )
             ( setf object-position ( position 'STATUS-SCREEN *room-objects* ) )
         )
+        ( ( eq candidate 'comic )
+            ( setf object-position ( position 'CUBBY *room-objects* ) )
+        )
     )
 
     object-position
@@ -193,12 +197,17 @@
 
     ( cond 
         ( ( eq list-item 'DRAWER )
-            ( if ( get list-item 'is-locked ) 
+            ( if ( get list-item 'is-locked )
                 ( setf output ( get list-item 'look ) ) 
                 ( if ( get list-item 'is-open )
                     ( setf output ( get list-item 'look-unlocked-neutral ) )
                     ( setf output ( get list-item 'look-closed) )
                 ) 
+            )
+        )
+        ( ( eq list-item 'CUBBY )
+            ( if ( search "comic" input )
+                ( setf output ( get list-item 'look-comic ) )
             )
         )
     )
