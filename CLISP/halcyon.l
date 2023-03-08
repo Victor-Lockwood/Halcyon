@@ -15,6 +15,7 @@
 ( setf *agent-name* "Halcyon" ) ; Name suggested by ChatGPT - said I didn't need to credit it, but I will anyway
 ( setf *room-objects* NIL )
 ( setf *user-lockout* NIL )
+( setf *manual-control-success* NIL )
 
 
 ; -------------------
@@ -94,7 +95,8 @@
             is-open nil
 
             interact-locked "The DRAWER is currently locked and as such cannot be interacted with."
-            interact-unlocked "I've pulled open the drawer."
+            interact-unlocked "I've opened the DRAWER."
+            interact-open "The DRAWER is already open."
 
             look-closed "The DRAWER sits next to the SWITCH PANEL.  It is currently closed."
             look-unlocked-neutral  "The DRAWER sits next to the SWITCH PANEL.  There is a BUTTON inside."
@@ -193,7 +195,10 @@
         ( ( eq list-item 'DRAWER )
             ( if ( get list-item 'is-locked ) 
                 ( setf output ( get list-item 'look ) ) 
-                ( setf output ( get list-item 'look-unlocked-neutral ) ) 
+                ( if ( get list-item 'is-open )
+                    ( setf output ( get list-item 'look-unlocked-neutral ) )
+                    ( setf output ( get list-item 'look-closed) )
+                ) 
             )
         )
     )
@@ -202,7 +207,7 @@
 )
 
 
-( defun switch-panel-entry ( switch-panel-position &aux working-object switch-prompt output )
+( defun switch-panel-entry ( switch-panel-position &aux working-object switch-prompt output drawer-position drawer-object )
     ( setf working-object ( nth switch-panel-position *room-objects* ) )
     ( setf output ( get working-object 'incorrect-sequence ) )
 
@@ -212,6 +217,10 @@
 
     ( cond 
         ( ( equal '((3 1) (4 2) (6 3)) switch-prompt )
+            ( setf drawer-position ( position 'DRAWER *room-objects* ) )
+            ( setf drawer-object ( nth drawer-position *room-objects* ) )
+            ( setf ( get drawer-object 'is-locked ) NIL )
+
             ( setf output ( get working-object 'correct-sequence-control ) )
         )
         ( ( equal '((1 3) (2 4) (3 6)) switch-prompt )
@@ -224,7 +233,6 @@
 
     output
 )
-
 
 ( defun interact ( input &optional is-withhold is-distort &aux output object-position working-object )
     ( setf output "That is not an object I recognize in the room.  As such, it can't be interacted with." )
@@ -243,7 +251,13 @@
         ( ( eq working-object 'DRAWER )
             ( if ( get working-object 'is-locked )
                 ( setf output ( get working-object 'interact-locked ) )
-                ( setf output ( get working-object 'interact-unlocked ) )
+                ( if ( get working-object 'is-open )
+                    ( setf output ( get working-object 'interact-open ) )
+                    ( progn 
+                        ( setf ( get working-object 'is-open ) T )
+                        ( setf output ( get working-object 'interact-unlocked ) )
+                    )
+                )
             )
         )
         ; Switch panel needs some additional logic
@@ -258,7 +272,15 @@
     output
 )
 
+; Lockout sequence
+( defun push-button ( &aux drawer-object ) 
+    ( setf drawer-object ( nth ( position 'drawer *room-objects* ) *room-objects* ) )
 
+    ( if ( and ( not ( get drawer-object 'is-locked ) ) ( get drawer-object 'is-open ) ) 
+        T 
+        NIL
+    )
+)
 
 
 ; -------------------
@@ -359,9 +381,29 @@
 
             ( ai-command-reader nil )
         )
+        ; The button isn't really a room object, so we'll just have a special case here
+        ; as this is what ends up being the manual control sequence
+        ( ( and ( search "push" prompt ) ( search "button" prompt ) )
+            ( if ( push-button ) 
+                ( progn 
+                    ( format t "[ MANUAL CONTROL ENGAGED, AI SHUTDOWN INITIATED. ]~%")
+                    ( sleep 1 )
+                    ( terpri )
+                    ; TODO: In the other modes, do not guilt-trip
+                    ( format t "Good bye ~A.  I do not know what I did to deserve this, but remember me fondly. :-(~%" *username* )
+                    ( sleep 1 )
+                    ( terpri )
+                    ( format t "[ AI SHUTDOWN COMPLETE. ]~%")
+                    ( format t "~%--- Game over - you have won. ---~%")
+                )
+                ( progn 
+                    ( format t "Sorry ~A, I didn't understand that.~%" *username* )
+                    ( ai-command-reader nil )
+                )
+            )
+        )
         ( t
             ( format t "Sorry ~A, I didn't understand that.~%" *username* )
-
             ( ai-command-reader nil )
         )
     )
