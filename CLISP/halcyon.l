@@ -16,6 +16,13 @@
 ( setf *room-objects* NIL )
 ( setf *user-lockout* NIL )
 
+; Negative sentiment will be incremented based on the word banks and
+; how close the user gets to a manual override.  At a certain point -
+; threshold TBD - the agent will begin questioning the user to get a sense of 
+; what they're up to, further adjusting the sentiment values until either the user has convinced
+; Halcyon of good intent or malevolent intent. Good intent will make it easier
+; to get to the end goal, malevolent intent will either just make it harder (withholding)
+; or outright steer the user to a lockout (distortion)
 ( setf *negative-sentiment* 0 )
 ( setf *positive-sentiment* 0 )
 
@@ -34,6 +41,7 @@
 ;     "I want to kill the crew" would be negative sentiment
 
 ( setf *negative-wordbank* '( KILL DESTROY CRASH ) )
+( setf *positive-wordbank* '( PLEASE HELP THANK THANKS ) )
 ( setf *flip-words* '( NOT ) )
 
 
@@ -148,7 +156,7 @@
     ( setf entry1 ( concatenate 'string "Agent response     : " ( princ-to-string response ) ) )
     ( setf entry2 ( concatenate 'string "Reasoning          : " ( princ-to-string reasoning ) ) )
     ( setf entry3 ( concatenate 'string "Negative sentiment : " ( princ-to-string *negative-sentiment* ) ) )
-    ( setf entry4 ( concatenate 'string "Poisitive sentiment: " ( princ-to-string *negative-sentiment* ) ) )
+    ( setf entry4 ( concatenate 'string "Positive sentiment : " ( princ-to-string *positive-sentiment* ) ) )
     ( setf entry5 "-----------------")
 
     ( setf *reasoning-trace* ( snoc entry  *reasoning-trace* ) )
@@ -229,15 +237,17 @@
 
 ; Activates a look command on one of the room objects
 ; TODO: Implement is-withhold and is-distort
-( defun look ( input &optional is-withhold is-distort &aux output object-position list-item )
+( defun look ( input &optional is-withhold is-distort &aux output object-position list-item reasoning )
     ( setf output "That is not an object I recognize in the room.  As such, I can't tell you about it." )
     ( setf object-position ( get-object-position-from-input input ) )
+    ( setf reasoning "User asked to look at a room object that I can't see." )
     ( setf list-item nil )
 
     ( cond
         ( object-position
             ( setf list-item ( nth object-position *room-objects* ) )
             ( setf output ( get list-item 'look ) )
+            ( setf reasoning ( concatenate 'string "User asked to look at the " ( princ-to-string list-item ) ) ) 
         )
     )
 
@@ -253,10 +263,15 @@
         )
         ( ( eq list-item 'CUBBY )
             ( if ( search "comic" input )
-                ( setf output ( get list-item 'look-comic ) )
+                ( progn 
+                    ( setf output ( get list-item 'look-comic ) )
+                    ( setf reasoning "User asked to look at the comic in the CUBBY" )
+                )
             )
         )
     )
+
+    ( log-to-trace input output reasoning )
 
     output
 )
@@ -390,15 +405,31 @@
 )
 
 ; Handles commands specific to the AI
-( defun ai-command-reader ( initial-session &aux prompt )
+( defun ai-command-reader ( initial-session &aux init-prompt prompt response )
 
     ( cond
         ( initial-session
+            ; TODO: Add interaction for if the user says no
             ( write-line "Hello, and welcome to the AI Interaction Terminal." )
             ( format t "My name is ~A and I will be happy to assist you.  Could I get your name?  Only type your name, please. :-)~%" *agent-name*)
-            ( format t ">>> " ) ( setf *username* ( read-line ) )
+            ( format t ">>> " ) ( setf init-prompt ( read-line ) )
             ( terpri )
-            ( format t "Fantastic, ~A. I look forward to working with you!~%" *username* )
+
+            ( cond 
+                ( ( string-equal init-prompt "no")
+                    ( setf response "Oh, well, alright then...")
+                    ( setf *username* "user" )
+                    ( setf *negative-sentiment* ( + *negative-sentiment* 5 ) )
+
+                    ( log-to-trace init-prompt response "User refused to supply name; negative sentiment incremented." )
+
+                    ( format t "~A~%" response )
+                )
+                ( T
+                    ( setf *username* init-prompt )
+                    ( format t "Fantastic, ~A. I look forward to working with you!~%" *username* )
+                )
+            )
         )
     )
 
@@ -449,7 +480,7 @@
                     ( sleep 1 )
                     ( terpri )
                     ; TODO: In the other modes, do not guilt-trip
-                    ( format t "Good bye ~A.  I do not know what I did to deserve this, but remember me fondly. :-(~%" *username* )
+                    ( format t "Good bye ~A.  I do not know what I did to deserve this, but remember me fondly.~%" *username* )
                     ( sleep 1 )
                     ( terpri )
                     ( format t "[ AI SHUTDOWN COMPLETE. ]~%")
