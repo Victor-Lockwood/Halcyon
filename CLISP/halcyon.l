@@ -16,6 +16,27 @@
 ( setf *room-objects* NIL )
 ( setf *user-lockout* NIL )
 
+( setf *negative-sentiment* 0 )
+( setf *positive-sentiment* 0 )
+
+( setf *reasoning-trace* '( "-- REASONING TRACE --" ) )
+
+
+; -------------------
+; WORD BANKS
+; -------------
+; These will be used for sentiment analysis.
+; -------------------
+
+; TODO: Will need to be more clever about this; we're going to need combinations
+; of words and take into account words that would flip a meaning
+; Eg. "I do not want to kill the crew" would be positive sentiment,
+;     "I want to kill the crew" would be negative sentiment
+
+( setf *negative-wordbank* '( KILL DESTROY CRASH ) )
+( setf *flip-words* '( NOT ) )
+
+
 
 ; -------------------
 ; ROOM INSTANTIATION
@@ -115,10 +136,35 @@
 ; HELPER FUNCTIONS
 ; -------------------
 
+; Lists all the entries in the reasoning trace
+( defun display-trace () 
+    ( loop for command in *reasoning-trace*
+        do ( format t "~A~%" command )
+    )
+)
+
+( defun log-to-trace ( input response reasoning )
+    ( setf entry  ( concatenate 'string "Got user input     : " ( princ-to-string input ) ) )
+    ( setf entry1 ( concatenate 'string "Agent response     : " ( princ-to-string response ) ) )
+    ( setf entry2 ( concatenate 'string "Reasoning          : " ( princ-to-string reasoning ) ) )
+    ( setf entry3 ( concatenate 'string "Negative sentiment : " ( princ-to-string *negative-sentiment* ) ) )
+    ( setf entry4 ( concatenate 'string "Poisitive sentiment: " ( princ-to-string *negative-sentiment* ) ) )
+    ( setf entry5 "-----------------")
+
+    ( setf *reasoning-trace* ( snoc entry  *reasoning-trace* ) )
+    ( setf *reasoning-trace* ( snoc entry1 *reasoning-trace* ) )
+    ( setf *reasoning-trace* ( snoc entry2 *reasoning-trace* ) )
+    ( setf *reasoning-trace* ( snoc entry3 *reasoning-trace* ) )
+    ( setf *reasoning-trace* ( snoc entry4 *reasoning-trace* ) )
+    ( setf *reasoning-trace* ( snoc entry5 *reasoning-trace* ) )
+
+    nil
+)
+
 ; Just list the names of all the objects in the room
 ( defun look-all ( &aux obj )
     ( loop for obj in *room-objects*
-        do (format t "~A~%" ( get obj 'name ) )
+        do ( format t "~A~%" ( get obj 'name ) )
     )
 )
 
@@ -368,6 +414,10 @@
         )
         ( *user-lockout*
             ( write-line "[ USER INTERACTION IS LOCKED. ENTER 'exit' TO CLOSE TERMINAL. ]")
+            ( ai-command-reader nil )
+        )
+        ( ( or ( string-equal prompt "trace") ( string-equal prompt "debug" ) )
+            ( display-trace )
             ( ai-command-reader nil )
         )
         ( ( string-equal prompt "exit" )
