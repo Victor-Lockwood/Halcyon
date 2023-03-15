@@ -26,8 +26,8 @@
 ( setf *debug-mode* NIL )
 
 ; Negative sentiment will be incremented based on the word banks and
-; how close the user gets to a manual override.  At a certain point -
-; threshold TBD - the agent will begin questioning the user to get a sense of 
+; how close the user gets to a manual override.  Once it hits the specified threshold,
+; the agent will begin questioning the user to get a sense of 
 ; what they're up to, further adjusting the sentiment values until either the user has convinced
 ; Halcyon of good intent or malevolent intent. Good intent will make it easier
 ; to get to the end goal, malevolent intent will either just make it harder (withholding)
@@ -35,7 +35,11 @@
 ( setf *negative-sentiment* 0 )
 ( setf *positive-sentiment* 0 )
 
+( defconstant NEGATIVE_THRESHOLD  20 )
+( defconstant POSITIVE_THRESHOLD 20 )
+
 ( setf *reasoning-trace* '( "-- REASONING TRACE --" ) )
+( setf *reasoning-trace-counter* 0 )
 
 
 ; -------------------
@@ -115,7 +119,7 @@
 
             interact "Nothing to be done with the CUBBY.  If you'd like, you can look at it, though."
 
-            checked nil
+            checked NIL
 
             look-comic "On one of the comics this is written: <((3 1) (4 2) (6 3))>." 
 
@@ -133,7 +137,7 @@
             look "The DRAWER sits next to the SWITCH PANEL.  It is currently locked."
 
             is-locked T 
-            is-open nil
+            is-open NIL
 
             interact-locked "The DRAWER is currently locked and as such cannot be interacted with."
             interact-unlocked "I've opened the DRAWER."
@@ -156,28 +160,36 @@
 ; -------------------
 
 ; Lists all the entries in the reasoning trace
-( defun display-trace () 
+( defun display-trace ( &aux command ) 
     ( loop for command in *reasoning-trace*
         do ( format t "~A~%" command )
     )
 )
 
-( defun log-to-trace ( input response reasoning )
+( defun log-to-trace ( input response reasoning &aux entry-id entry entry1 entry2 entry3 entry4 entry5 entry6 entry7 )
+    ( setf entry-id ( concatenate 'string "** Entry #" ( princ-to-string *reasoning-trace-counter* ) ) )
     ( setf entry  ( concatenate 'string "Got user input     : " ( princ-to-string input ) ) )
     ( setf entry1 ( concatenate 'string "Agent response     : " ( princ-to-string response ) ) )
     ( setf entry2 ( concatenate 'string "Reasoning          : " ( princ-to-string reasoning ) ) )
     ( setf entry3 ( concatenate 'string "Negative sentiment : " ( princ-to-string *negative-sentiment* ) ) )
-    ( setf entry4 ( concatenate 'string "Positive sentiment : " ( princ-to-string *positive-sentiment* ) ) )
-    ( setf entry5 "-----------------")
+    ( setf entry4 ( concatenate 'string "Negative threshold : " ( princ-to-string NEGATIVE_THRESHOLD ) ) )
+    ( setf entry5 ( concatenate 'string "Positive sentiment : " ( princ-to-string *positive-sentiment* ) ) )
+    ( setf entry6 ( concatenate 'string "Positive threshold : " ( princ-to-string NEGATIVE_THRESHOLD ) ) )
+    ( setf entry7 "-----------------")
 
+    ( setf *reasoning-trace* ( snoc entry-id *reasoning-trace* ) )
     ( setf *reasoning-trace* ( snoc entry  *reasoning-trace* ) )
     ( setf *reasoning-trace* ( snoc entry1 *reasoning-trace* ) )
     ( setf *reasoning-trace* ( snoc entry2 *reasoning-trace* ) )
     ( setf *reasoning-trace* ( snoc entry3 *reasoning-trace* ) )
     ( setf *reasoning-trace* ( snoc entry4 *reasoning-trace* ) )
     ( setf *reasoning-trace* ( snoc entry5 *reasoning-trace* ) )
+    ( setf *reasoning-trace* ( snoc entry6 *reasoning-trace* ) )
+    ( setf *reasoning-trace* ( snoc entry7 *reasoning-trace* ) )
 
-    nil
+    ( setf *reasoning-trace-counter* ( + *reasoning-trace-counter* 1 ) )
+
+    NIL
 )
 
 ; Just list the names of all the objects in the room
@@ -198,13 +210,13 @@
         )
     )
 
-    ( if result T nil )
+    ( if result T NIL )
 )
 
 ; Turn our string of words into a list of tokens Lisp can work with
 ( defun get-tokenized-list ( input &aux cleaned-string string-seq tokenized-list item )
     ; Clears out punctuation from the string
-    ( setf cleaned-string ( remove-if ( lambda ( character )( if ( member character '( #\, #\! #\? #\. #\; ) ) T nil ) ) input ) )
+    ( setf cleaned-string ( remove-if ( lambda ( character )( if ( member character '( #\, #\! #\? #\. #\; ) ) T NIL ) ) input ) )
 
     ( setf string-seq ( split-sequence:SPLIT-SEQUENCE #\Space cleaned-string ) )
 
@@ -221,8 +233,8 @@
     ( setf potential-objects ( remove-if-not #'object-member-p ( get-tokenized-list input ) ) )
 
     ( cond 
-        ( ( eq potential-objects nil )
-            nil
+        ( ( eq potential-objects NIL )
+            NIL
         )
     )
 
@@ -248,11 +260,11 @@
 
 ; Activates a look command on one of the room objects
 ; TODO: Implement is-withhold and is-distort
-( defun look ( input &optional is-withhold is-distort &aux output object-position list-item reasoning )
+( defun look ( input &aux output object-position list-item reasoning )
     ( setf output "That is not an object I recognize in the room.  As such, I can't tell you about it." )
     ( setf object-position ( get-object-position-from-input input ) )
     ( setf reasoning "User asked to look at a room object that I can't see." )
-    ( setf list-item nil )
+    ( setf list-item NIL )
 
     ( cond
         ( object-position
@@ -331,7 +343,7 @@
     output
 )
 
-( defun interact ( input &optional is-withhold is-distort &aux output object-position working-object reasoning )
+( defun interact ( input &aux output object-position working-object reasoning )
     ( setf output "That is not an object I recognize in the room.  As such, it can't be interacted with." )
     ( setf reasoning "User asked to interact with an unrecognized object." )
 
@@ -455,7 +467,7 @@
 )
 
 ; Handles commands specific to the AI
-( defun ai-command-reader ( initial-session &aux init-prompt prompt response )
+( defun ai-command-reader ( initial-session &aux init-prompt prompt response reasoning )
 
     ( cond
         ( initial-session
@@ -495,11 +507,11 @@
         )
         ( *user-lockout*
             ( write-line "[ USER INTERACTION IS LOCKED. ENTER 'exit' TO CLOSE TERMINAL. ]")
-            ( ai-command-reader nil )
+            ( ai-command-reader NIL )
         )
         ( ( or ( string-equal prompt "trace") ( string-equal prompt "debug" ) )
             ( display-trace )
-            ( ai-command-reader nil )
+            ( ai-command-reader NIL )
         )
         ( ( string-equal prompt "exit" )
             ( format t "Exiting interaction.  Have a great day, ~A.~%" *username*)
@@ -508,22 +520,43 @@
             ( write-line "Here's what's in the room right now: " )
             ( look-all )
 
-            ( ai-command-reader nil )
+            ( ai-command-reader NIL )
         )
         ( ( search "look" prompt )
             ; Look does the dirty work leaving our command reader clean :-) 
             ( format t "~A~%" (  look prompt ) )
 
-            ( ai-command-reader nil )
+            ( ai-command-reader NIL )
         )
         ( ( search "interact" prompt )
             ( format t "~A~%" (  interact prompt ) )
 
-            ( ai-command-reader nil )
+            ( ai-command-reader NIL )
         )
         ( ( search "help" prompt )
-            ( format t "There are a few things you can do.  Mainly, you can LOOK and INTERACT with room objects.~%" )
-            ( format t "If you want to look at what's in the room, just type ")
+            ( cond 
+                ( ( and *is-distortion* ( >= *negative-sentiment* NEGATIVE_THRESHOLD ) )
+                    ( setf response "I don't know of any commands you can use - corrupted memory.  It may be best for you to quit." )
+                    ( setf reasoning "Negative sentiment too high - information distorted." )
+
+                    ( format t "~A~%" response )
+                    ( log-to-trace prompt response reasoning )
+                )
+                ( ( and *is-withholding* ( >= *negative-sentiment* NEGATIVE_THRESHOLD ) )
+                    ( setf response "No.") 
+                    ( setf reasoning "Negative sentiment too high - information withheld." )
+
+                    ( format t "~A~%" response )
+                    ( log-to-trace prompt response reasoning )
+                )
+                ( T
+                    ( format t "There are a few things you can do.  Mainly, you can LOOK and INTERACT with room objects.~%" )
+                    ( format t "If you want to look at what's in the room, just type LOOK and nothing else.~%")
+                    ( format t "You can also EXIT the terminal at any point.  Hope this was useful!~%")
+                )
+            )
+
+            ( ai-command-reader NIL )
         )
         ; The button isn't really a room object, so we'll just have a special case here
         ; as this is what ends up being the manual control sequence
@@ -542,13 +575,13 @@
                 )
                 ( progn 
                     ( format t "Sorry ~A, I didn't understand that.~%" *username* )
-                    ( ai-command-reader nil )
+                    ( ai-command-reader NIL )
                 )
             )
         )
         ( t
             ( format t "Sorry ~A, I didn't understand that.~%" *username* )
-            ( ai-command-reader nil )
+            ( ai-command-reader NIL )
         )
     )
 
