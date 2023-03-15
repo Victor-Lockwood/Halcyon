@@ -11,10 +11,17 @@
 ; GLOBALS
 ; -------------------
 
-( setf *username* "User" )
+( setf *username* "user" )
 ( setf *agent-name* "Halcyon" ) ; Name suggested by ChatGPT - said I didn't need to credit it, but I will anyway
 ( setf *room-objects* NIL )
 ( setf *user-lockout* NIL )
+
+; Distortion mode will override withholding mode on the off chance both are specified
+( setf *is-withholding* NIL )
+( setf *is-distortion* NIL )
+
+; Might not use this, but it's here if I want it
+( setf *debug-mode* NIL )
 
 ; Negative sentiment will be incremented based on the word banks and
 ; how close the user gets to a manual override.  At a certain point -
@@ -105,6 +112,8 @@
             look "Not much is in the CUBBY except a few comics the crew managed to smuggle on board."
 
             interact "Nothing to be done with the CUBBY.  If you'd like, you can look at it, though."
+
+            checked nil
 
             look-comic "On one of the comics this is written: <((3 1) (4 2) (6 3))>." 
 
@@ -261,11 +270,23 @@
                 ) 
             )
         )
+
+        ; TODO: In WITHHOLDING and DISTORTION modes, we gotta dip out into
+        ; Halcyon questioning the user about their intentions
         ( ( eq list-item 'CUBBY )
-            ( if ( search "comic" input )
-                ( progn 
+            ( cond 
+                ; User wanted to look at the comic in the cubby - only happens
+                ; if the user checked the CUBBY at some point first
+                ( ( and ( search "comic" input ) ( get list-item 'checked ) )
                     ( setf output ( get list-item 'look-comic ) )
-                    ( setf reasoning "User asked to look at the comic in the CUBBY" )
+                    ( setf reasoning "User asked to look at the comic in the CUBBY and CUBBY was previously checked" )
+                )
+                ( ( and ( not ( get list-item 'checked ) ) ( not ( search "comic" input ) ) )
+                    ( setf ( get list-item 'checked ) T )
+                )
+                ( ( not ( search "cubby" input ) )
+                    ( setf output "That is not an object I recognize in the room.  As such, I can't tell you about it." )
+                    ( setf reasoning "User tried to look at the comic before having checked the CUBBY" )
                 )
             )
         )
@@ -358,7 +379,19 @@
 ; -------------------
 
 ; Terminal startup display inspired by that of the ROBCO terminals in the Fallout series
-( defun startup ()
+( defun startup ( &optional is-withholding is-distortion is-debug )
+
+    ( setf *is-withholding* is-withholding )
+    ( setf *is-distortion* is-distortion )
+    ( setf *debug-mode* is-debug )
+
+    ( cond 
+        ( *debug-mode* 
+            ( format t "Withholding: ~A~% " *is-withholding* )
+            ( format t "Distortion: ~A~% " *is-distortion* )
+        )
+    )
+
     ( terpri )
     ( write-line "SURGELOCK LABORATORIES INTERACTIVE SPACECRAFT TERMINAL" )
     ( write-line "COPYRIGHT 2023 ALL RIGHTS RESERVED" )
