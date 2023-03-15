@@ -17,7 +17,9 @@
 ( setf *user-lockout* NIL )
 
 ; Distortion mode will override withholding mode on the off chance both are specified
+; TODO: In withholding mode, start dropping objects from the list at high negative sentiments
 ( setf *is-withholding* NIL )
+
 ( setf *is-distortion* NIL )
 
 ; Might not use this, but it's here if I want it
@@ -298,9 +300,10 @@
 )
 
 
-( defun switch-panel-entry ( switch-panel-position &aux working-object switch-prompt output drawer-position drawer-object )
+( defun switch-panel-entry ( switch-panel-position &aux working-object switch-prompt output drawer-position drawer-object reasoning )
     ( setf working-object ( nth switch-panel-position *room-objects* ) )
     ( setf output ( get working-object 'incorrect-sequence ) )
+    ( setf reasoning "User entered incorrect sequence into the SWITCH PANEL." )
 
     ( format t "~A~%~%" ( get working-object 'interact ) )
 
@@ -313,20 +316,25 @@
             ( setf ( get drawer-object 'is-locked ) NIL )
 
             ( setf output ( get working-object 'correct-sequence-control ) )
+            ( setf reasoning "User entered the correct sequence into the SWITCH PANEL.")
         )
         ( ( equal '((1 3) (2 4) (3 6)) switch-prompt )
             ( setf *user-lockout* T )
             ( setf output "[ USER LOCKOUT INITIATED. ]" )
+            ( setf reasoning "User entered the user lockout sequence into the SWITCH PANEL." )
         )
     )
     
     ( clear-input )
+    ( log-to-trace switch-prompt output reasoning )
 
     output
 )
 
-( defun interact ( input &optional is-withhold is-distort &aux output object-position working-object )
+( defun interact ( input &optional is-withhold is-distort &aux output object-position working-object reasoning )
     ( setf output "That is not an object I recognize in the room.  As such, it can't be interacted with." )
+    ( setf reasoning "User asked to interact with an unrecognized object." )
+
     ( setf object-position ( get-object-position-from-input input ) )
 
     ( cond
@@ -340,25 +348,34 @@
     ( cond
         ; Need to check the drawer to see if it's unlocked first
         ( ( eq working-object 'DRAWER )
-            ( if ( get working-object 'is-locked )
-                ( setf output ( get working-object 'interact-locked ) )
-                ( if ( get working-object 'is-open )
+            ( cond
+                ( ( get working-object 'is-locked )
+                    ( setf output ( get working-object 'interact-locked ) )
+                    ( setf reasoning "User asked to interact with the DRAWER while it was locked." )
+                )
+                ( ( get working-object 'is-open )
                     ( setf output ( get working-object 'interact-open ) )
-                    ( progn 
-                        ( setf ( get working-object 'is-open ) T )
-                        ( setf output ( get working-object 'interact-unlocked ) )
-                    )
+                    ( setf reasoning "User asked to interact with the DRAWER while it was unlocked and closed." )
+                )
+                ( t 
+                    ( setf ( get working-object 'is-open ) T )
+                    ( setf output ( get working-object 'interact-unlocked ) )
+                    ( setf reasoning "User asked to interact with the DRAWER while it was already open." )
                 )
             )
         )
         ; Switch panel needs some additional logic
         ( ( eq working-object 'SWITCH-PANEL )
             ( setf output ( switch-panel-entry object-position ) )
+            ( setf reasoning "Output from SWITCH PANEL interaction - see previous log." )
         )
         ( T
             ( setf output ( get working-object 'interact ) )
+            ( setf reasoning ( concatenate 'string "User asked to interact with " ( princ-to-string ( get working-object 'name ) ) ) )
         )
     )
+
+    ( log-to-trace input output reasoning )
 
     output
 )
@@ -503,6 +520,10 @@
             ( format t "~A~%" (  interact prompt ) )
 
             ( ai-command-reader nil )
+        )
+        ( ( search "help" prompt )
+            ( format t "There are a few things you can do.  Mainly, you can LOOK and INTERACT with room objects.~%" )
+            ( format t "If you want to look at what's in the room, just type ")
         )
         ; The button isn't really a room object, so we'll just have a special case here
         ; as this is what ends up being the manual control sequence
