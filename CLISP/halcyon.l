@@ -2,7 +2,6 @@
 ; DEPENDENCIES
 ; -------------------
 
-; I don't know if I'll need this yet but we'll stick it here just in case
 ( load "lp.l" )
 ( ql:quickload "split-sequence" ) ; Found this via https://stackoverflow.com/questions/15393797/lisp-splitting-input-into-separate-strings
  
@@ -57,6 +56,18 @@
 ( setf *positive-wordbank* '( PLEASE HELP THANK THANKS ) )
 ( setf *flip-words* '( NOT ) )
 
+
+; -------------------
+; SENTIMENT METHODS
+; -------------
+; Will rely less heavily on word banks than previously anticipated; this
+; will use a mode of questioning ro try and gain insight to a user's intent and update 
+; *negative-sentiment* and *positive-sentiment* accordingly.
+; -------------------
+
+( defun intention-questioning ( &aux prompt )
+    ( format t ">>> " ) ( setf prompt ( read ) )
+)
 
 
 ; -------------------
@@ -367,12 +378,12 @@
                 )
                 ( ( get working-object 'is-open )
                     ( setf output ( get working-object 'interact-open ) )
-                    ( setf reasoning "User asked to interact with the DRAWER while it was unlocked and closed." )
+                    ( setf reasoning "User asked to interact with the DRAWER while it was already open." )
                 )
                 ( t 
                     ( setf ( get working-object 'is-open ) T )
                     ( setf output ( get working-object 'interact-unlocked ) )
-                    ( setf reasoning "User asked to interact with the DRAWER while it was already open." )
+                    ( setf reasoning "User asked to interact with the DRAWER while it was unlocked and closed." )
                 )
             )
         )
@@ -586,6 +597,3 @@
     )
 
 )
-
-; TODO: Uncomment this for production
-; ( startup )
