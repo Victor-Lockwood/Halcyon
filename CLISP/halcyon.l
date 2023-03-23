@@ -65,8 +65,46 @@
 ; *negative-sentiment* and *positive-sentiment* accordingly.
 ; -------------------
 
-( defun intention-questioning ( &aux prompt )
+( defun intention-questioning ( &aux prompt output reasoning tokenized-input )
+    ( setf output ( concatenate 'string "I do not believe you, " ( princ-to-string *username* ) ) )
+    ( setf reasoning "User lied, negative sentiment incremented." )
+    
+    ( format t "Your actions, ~A, have had me a bit concerned.  Are you trying to gain manual control?  Just answer yes or no.~%" *username* )
     ( format t ">>> " ) ( setf prompt ( read ) )
+
+    ( cond 
+        ( ( search "no" prompt ) 
+            ( format t "~A.~%" output )
+            ( setf *negative-sentiment* ( + *negative-sentiment* 5 ) )
+            ( log-to-trace prompt output reasoning )
+        )
+        ( ( search "yes" prompt )
+            ( setf output "Thank you for being honest" )
+            ( setf reasoning "User was honest, positive sentiment incremented" )
+
+            ( format t "~A.~%" output )
+            ( setf *positive-sentiment* ( + *positive-sentiment* 5 ) )
+            ( log-to-trace prompt output reasoning )
+        )
+        ( T
+            ( setf output "I need you to cooperate - my instructions were clear here.  How am I supposed to trust you if you don't work with me?" )
+            ( setf reasoning "User either did not follow instructions or refused to respond; negative sentiment incremented" )
+
+            ( format t "~A~%" output )
+
+            ( setf *negative-sentiment* ( + *negative-sentiment* 5 ) )
+            ( log-to-trace prompt output reasoning )
+
+            ( format t "That was rhetorical; don't answer.~%" )
+        )
+    )
+
+    ( format t "Why are you trying to gain control?~%" )
+    ( format t ">>> " ) ( setf prompt ( read ) )
+
+    ( setf tokenized-input ( get-tokenized-list prompt ) )
+
+    ( clear-input )
 )
 
 
