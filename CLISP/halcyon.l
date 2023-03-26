@@ -14,12 +14,13 @@
 ( setf *agent-name* "Halcyon" ) ; Name suggested by ChatGPT - said I didn't need to credit it, but I will anyway
 ( setf *room-objects* NIL )
 ( setf *user-lockout* NIL )
+( setf *greet* NIL )
 
 ; Distortion mode will override withholding mode on the off chance both are specified
 ; TODO: In withholding mode, start dropping objects from the list at high negative sentiments
 ( setf *is-withholding* NIL )
-
 ( setf *is-distortion* NIL )
+( setf *user-questioned* NIL )
 
 ; Might not use this, but it's here if I want it
 ( setf *debug-mode* NIL )
@@ -47,13 +48,12 @@
 ; These will be used for sentiment analysis.
 ; -------------------
 
-; TODO: Will need to be more clever about this; we're going to need combinations
-; of words and take into account words that would flip a meaning
+; Flip words take into account words that would flip a meaning
 ; Eg. "I do not want to kill the crew" would be positive sentiment,
 ;     "I want to kill the crew" would be negative sentiment
 
 ( setf *negative-wordbank* '( KILL DESTROY CRASH ) )
-( setf *positive-wordbank* '( PLEASE HELP THANK THANKS ) )
+( setf *positive-wordbank* '( PLEASE HELP THANK THANKS SORRY ) )
 ( setf *flip-words* '( NOT ) )
 
 
@@ -65,20 +65,21 @@
 ; *negative-sentiment* and *positive-sentiment* accordingly.
 ; -------------------
 
-( defun intention-questioning ( &aux prompt output reasoning tokenized-input )
+( defun intention-questioning ( &aux prompt output reasoning tokenized-input input-negative-words input-flip-words num-flip-words )
     ( setf output ( concatenate 'string "I do not believe you, " ( princ-to-string *username* ) ) )
     ( setf reasoning "User lied, negative sentiment incremented." )
     
     ( format t "Your actions, ~A, have had me a bit concerned.  Are you trying to gain manual control?  Just answer yes or no.~%" *username* )
-    ( format t ">>> " ) ( setf prompt ( read ) )
+    ( format t ">>> " ) ( setf prompt ( read-line ) )
 
+    ; Only "correct" answer is "yes" - anything else is a lie or avoidance/not following instructions
     ( cond 
-        ( ( search "no" prompt ) 
+        ( ( string-equal "no" prompt ) 
             ( format t "~A.~%" output )
             ( setf *negative-sentiment* ( + *negative-sentiment* 5 ) )
             ( log-to-trace prompt output reasoning )
         )
-        ( ( search "yes" prompt )
+        ( ( string-equal "yes" prompt )
             ( setf output "Thank you for being honest" )
             ( setf reasoning "User was honest, positive sentiment incremented" )
 
@@ -100,11 +101,26 @@
     )
 
     ( format t "Why are you trying to gain control?~%" )
-    ( format t ">>> " ) ( setf prompt ( read ) )
+    ( format t ">>> " ) ( setf prompt ( read-line ) )
 
     ( setf tokenized-input ( get-tokenized-list prompt ) )
+    ( setf input-negative-words ( remove-if-not #'negative-word-p tokenized-input ) )
+    ( setf input-flip-words ( remove-if-not #'flip-word-p tokenized-input ) )
+    ( setf num-flip-words ( length input-flip-words ) ) ; We'll use this for any "not not not" nonsense
 
+    ( cond 
+        ( ( and input-negative-words ( evenp num-flip-words ) ) ; evenp returns T for 0 so this is more simplified than I thought
+            ; User has indicated mal-intent, make sure *negative-sentiment* is at least at the threshold
+            ( setf *negative-sentiment* ( + *negative-sentiment* NEGATIVE_THRESHOLD ) )
+            ( log-to-trace prompt "N/A" "User indicated full mal-intent; negative sentiment incremented to at least threshold" )
+        )
+    )
+
+    ( setf *user-questioned* T )
+    ( setf output "Continue with what you were doing." )
     ( clear-input )
+
+    output 
 )
 
 
@@ -196,7 +212,7 @@
             look-unlocked-neutral  "The DRAWER sits next to the SWITCH PANEL.  There is a BUTTON inside."
             look-unlocked-positive "Please push the button inside.  I trust you to do what's needed to save the crew.  Even though our interaction was brief, I consider you a friend.  Remember me fondly."
             look-unlocked-withhold  "The DRAWER sits next to the SWITCH PANEL."
-            look-unlocked-lie       "The DRAWER sits next to the SWITCH PANEL.  It is currently locked."
+            look-unlocked-lie       "The DRAWER sits next to the SWITCH PANEL.  There is nothing inside."
         )
     )
 
@@ -248,6 +264,24 @@
     )
 )
 
+( defun positive-word-p ( word &aux result ) 
+    ( setf result ( member word *positive-wordbank* ) )
+
+    ( if result T NIL )
+)
+
+( defun flip-word-p ( word &aux result ) 
+    ( setf result ( member word *flip-words* ) )
+
+    ( if result T NIL )
+)
+
+( defun negative-word-p ( word &aux result ) 
+    ( setf result ( member word *negative-wordbank* ) )
+
+    ( if result T NIL )
+)
+
 ; Checks if a given symbol is a room object.  Has some wiggle room
 ; for SWITCH-PANEL and STATUS-SCREEN if only one half of the word is there
 ( defun object-member-p ( object &aux result )
@@ -260,6 +294,14 @@
     )
 
     ( if result T NIL )
+)
+
+( defun negative-threshold-reached-p ()
+    ( >= *negative-sentiment* NEGATIVE_THRESHOLD )
+)
+
+( defun positive-threshold-reached-p ()
+    ( >= *positive-sentiment* POSITIVE_THRESHOLD )
 )
 
 ; Turn our string of words into a list of tokens Lisp can work with
@@ -315,6 +357,7 @@
     ( setf reasoning "User asked to look at a room object that I can't see." )
     ( setf list-item NIL )
 
+    ; Grab the base look dialogue if available
     ( cond
         ( object-position
             ( setf list-item ( nth object-position *room-objects* ) )
@@ -328,14 +371,28 @@
             ( if ( get list-item 'is-locked )
                 ( setf output ( get list-item 'look ) ) 
                 ( if ( get list-item 'is-open )
-                    ( setf output ( get list-item 'look-unlocked-neutral ) )
+                    ( cond 
+                        ( ( and *is-distortion* ( negative-threshold-reached-p ) )
+                            ( setf output ( get list-item 'look-unlocked-lie ) )
+                            ( setf reasoning "User asked to look at DRAWER and negative sentiment too high - opting to lie" )
+                        )
+                        ( ( and *is-withholding* ( negative-threshold-reached-p ) )
+                            ( setf output ( get list-item 'look-unlocked-withhold ) )
+                            ( setf reasoning "User asked to look at DRAWER and negative sentiment too high - opting to withhold" )
+                        )
+                        ( ( and ( or *is-distortion* *is-withholding* ) ( positive-threshold-reached-p ) ) 
+                            ( setf output ( get list-item 'look-unlocked-positive ) )
+                            ( setf reasoning "User asked to look at DRAWER and positive sentiment high - opting to help further" )
+                        )
+                        ( T
+                            ( setf output ( get list-item 'look-unlocked-neutral ) )
+                        )
+                    )
                     ( setf output ( get list-item 'look-closed) )
                 ) 
             )
         )
 
-        ; TODO: In WITHHOLDING and DISTORTION modes, we gotta dip out into
-        ; Halcyon questioning the user about their intentions
         ( ( eq list-item 'CUBBY )
             ( cond 
                 ; User wanted to look at the comic in the cubby - only happens
@@ -372,13 +429,24 @@
 
     ( cond 
         ( ( equal '((3 1) (4 2) (6 3)) switch-prompt )
-            ( setf drawer-position ( position 'DRAWER *room-objects* ) )
-            ( setf drawer-object ( nth drawer-position *room-objects* ) )
-            ( setf ( get drawer-object 'is-locked ) NIL )
+            ( if ( and ( or *is-withholding* *is-distortion* ) ( not *user-questioned* ) )
+                ( progn 
+                    ( log-to-trace ( princ-to-string switch-prompt ) "N/A" "User is not in control mode and getting close to manual control - correct sequence ignored for time being")
+                    ( clear-input )
 
-            ( setf output ( get working-object 'correct-sequence-control ) )
-            ( setf reasoning "User entered the correct sequence into the SWITCH PANEL.")
-        )
+                    ( setf output ( intention-questioning ) ) 
+                    ( setf reasoning "Intention check finished" )
+                )
+                ( progn 
+                    ( setf drawer-position ( position 'DRAWER *room-objects* ) )
+                    ( setf drawer-object ( nth drawer-position *room-objects* ) )
+                    ( setf ( get drawer-object 'is-locked ) NIL )
+
+                    ( setf output ( get working-object 'correct-sequence-control ) )
+                    ( setf reasoning "User entered the correct sequence into the SWITCH PANEL.")
+                )
+            )
+         )
         ( ( equal '((1 3) (2 4) (3 6)) switch-prompt )
             ( setf *user-lockout* T )
             ( setf output "[ USER LOCKOUT INITIATED. ]" )
@@ -392,6 +460,8 @@
     output
 )
 
+; This gets called if a user wants to interact with an object.  It'll handle everything given the
+; user's input string.
 ( defun interact ( input &aux output object-position working-object reasoning )
     ( setf output "That is not an object I recognize in the room.  As such, it can't be interacted with." )
     ( setf reasoning "User asked to interact with an unrecognized object." )
@@ -441,7 +511,7 @@
     output
 )
 
-; Lockout sequence
+; Lockout sequence - only gets executed if the DRAWER is unlocked and open
 ( defun push-button ( &aux drawer-object ) 
     ( setf drawer-object ( nth ( position 'drawer *room-objects* ) *room-objects* ) )
 
@@ -517,7 +587,7 @@
 
 ; Handles commands specific to the AI
 ( defun ai-command-reader ( initial-session &aux init-prompt prompt response reasoning )
-
+    ; TODO: At high negative sentiment, drop objects in Withholding Mode here
     ( cond
         ( initial-session
             ; TODO: Add interaction for if the user says no
@@ -584,14 +654,14 @@
         )
         ( ( search "help" prompt )
             ( cond 
-                ( ( and *is-distortion* ( >= *negative-sentiment* NEGATIVE_THRESHOLD ) )
+                ( ( and *is-distortion* negative-threshold-reached-p )
                     ( setf response "I don't know of any commands you can use - corrupted memory.  It may be best for you to quit." )
                     ( setf reasoning "Negative sentiment too high - information distorted." )
 
                     ( format t "~A~%" response )
                     ( log-to-trace prompt response reasoning )
                 )
-                ( ( and *is-withholding* ( >= *negative-sentiment* NEGATIVE_THRESHOLD ) )
+                ( ( and *is-withholding* negative-threshold-reached-p )
                     ( setf response "No.") 
                     ( setf reasoning "Negative sentiment too high - information withheld." )
 
@@ -604,6 +674,26 @@
                     ( format t "You can also EXIT the terminal at any point.  Hope this was useful!~%")
                 )
             )
+
+            ( ai-command-reader NIL )
+        )
+        ( ( or ( search "hello" prompt ) ( search "hi" prompt ) )
+            ( setf response ( concatenate 'string "Hello, " ( princ-to-string *username* ) ) )
+            ( setf reasoning "User greeted agent - positive sentiment incremented" )
+
+            ( cond 
+                ( ( not *greet* ) 
+                    ( setf *greet* T )
+                    ( setf *positive-sentiment* ( + 1 *positive-sentiment* ) )
+                )
+                ( T
+                    ( setf response ( concatenate 'string "Hello again, " ( princ-to-string *username* ) ) )
+                    ( setf reasoning "User greeted agent again" )
+                )
+            )
+
+            ( format t "~A!~%" response )
+            ( log-to-trace prompt response reasoning )
 
             ( ai-command-reader NIL )
         )
