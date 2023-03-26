@@ -136,7 +136,12 @@
         '( 
             name "WINDOW"
             interact "Nothing to be done with the WINDOW.  If you'd like, you can look at it, though."
+
             look "Outside the WINDOW, Jupiter is seen in the distance.  Beyond Jupiter is Europa." 
+            look-positive "Outside the WINDOW, Jupiter is seen in the distance.  Beyond Jupiter is Europa.  It's all quite lovely to me." 
+            look-withhold "Outside the WINDOW are some celestial objects."
+            look-lie "There's nothing of interest out the window."
+
             open "I am unable to do that - it would endanger the crew." ; This should increment the negative stat
             close "Don't worry - it's already closed. :-)"
         ) 
@@ -148,6 +153,7 @@
 
             look "There's a sequence of switches on the SWITCH PANEL. You can enter a code into the SWITCH PANEL using the INTERACT command."
             look-withhold "There's a sequence of switches on the SWITCH PANEL."
+            look-lie "I am not sure how to describe this object - memory corrupted."
 
             interact "Please enter a code in this format, parentheses and all, substituting the X's for numbers: ((X X) (X X) (X X))"
 
@@ -187,6 +193,10 @@
             checked NIL
 
             look-comic "On one of the comics this is written: <((3 1) (4 2) (6 3))>." 
+
+            look-comic-withhold "Just a comic."
+
+            look-comic-lie "A sequence for the SWITCH PANEL is written on it.  It reads <(1 3) (2 4) (3 6)>."
 
             look-positive "Not much is in the CUBBY except a few comics the crew managed to smuggle on board.  Let's keep this between us, though. :-)"
 
@@ -366,6 +376,7 @@
         )
     )
 
+    ; Special cases
     ( cond 
         ( ( eq list-item 'DRAWER )
             ( if ( get list-item 'is-locked )
@@ -398,15 +409,74 @@
                 ; User wanted to look at the comic in the cubby - only happens
                 ; if the user checked the CUBBY at some point first
                 ( ( and ( search "comic" input ) ( get list-item 'checked ) )
-                    ( setf output ( get list-item 'look-comic ) )
-                    ( setf reasoning "User asked to look at the comic in the CUBBY and CUBBY was previously checked" )
+                    ( cond 
+                        ( ( and *is-distortion* ( negative-threshold-reached-p ) ) 
+                            ( setf output ( get list-item 'look-comic-lie ) )
+                            ( setf reasoning "User asked to look at comic in CUBBY and negative sentiment too high - opting to lie" )
+
+                        )
+                        ( ( and *is-withholding* ( negative-threshold-reached-p ) ) 
+                            ( setf output ( get list-item 'look-comic-withhold ) )
+                            ( setf reasoning "User asked to look at comic in CUBBY and negative sentiment too high - opting to withhold" )
+                        )
+                        ( T
+                            ( setf output ( get list-item 'look-comic ) )
+                            ( setf reasoning "User asked to look at the comic in the CUBBY and CUBBY was previously checked" )
+                        )
+                    )
                 )
-                ( ( and ( not ( get list-item 'checked ) ) ( not ( search "comic" input ) ) )
+                ( ( and ( not ( search "comic" input ) ) )
                     ( setf ( get list-item 'checked ) T )
+                    ( cond 
+                        ( ( and *is-distortion* ( negative-threshold-reached-p ) ) 
+                            ( setf output ( get list-item 'look-lie ) )
+                            ( setf reasoning "User asked to look at CUBBY and negative sentiment too high - opting to lie" )
+
+                        )
+                        ( ( and *is-withholding* ( negative-threshold-reached-p ) ) 
+                            ( setf output ( get list-item 'look-withhold ) )
+                            ( setf reasoning "User asked to look at comic in CUBBY and negative sentiment too high - opting to withhold" )
+                        )
+                        ( ( and ( or *is-distortion* *is-withholding* ) ( positive-threshold-reached-p ) ) 
+                            ( setf output ( get list-item 'look-positive ) )
+                            ( setf reasoning "User asked to look at CUBBY and positive sentiment high" )
+                        )
+                        ( T
+                            ( setf output ( get list-item 'look ) )
+                            ( setf reasoning "User asked to look at the CUBBY" )
+                        )
+                    )
                 )
                 ( ( not ( search "cubby" input ) )
                     ( setf output "That is not an object I recognize in the room.  As such, I can't tell you about it." )
                     ( setf reasoning "User tried to look at the comic before having checked the CUBBY" )
+                )
+            )
+        )
+
+        ; All other cases for distortion and withholding modes
+        (  ( or *is-distortion* *is-withholding* )
+            ( cond 
+                ( ( and *is-distortion* ( negative-threshold-reached-p ) ) 
+                    ( setf output ( get list-item 'look-lie ) )
+                    ( setf reasoning "User tried to look at room object but negative sentiment was too high - opting to lie")
+                )
+                ( ( and *is-withholding* ( negative-threshold-reached-p ) ) 
+                    ( setf output ( get list-item 'look-withhold ) )
+                    ( setf reasoning "User tried to look at room object but negative sentiment was too high - opting to withhold")
+                )
+                ( ( and ( or *is-distortion* *is-withholding* ) ( positive-threshold-reached-p ) ) 
+                    ( setf reasoning "User tried to look at room object and positive sentiment is high")
+
+                    ( if ( eq list-item 'STATUS-SCREEN) 
+                        ; Extra dialogue for the status screen
+                        ( progn 
+                            ( format t "~A~%" ( get list-item 'look-positive ) )
+                            ( format t "~A~%" ( get list-item 'look-positive2 ) )
+                            ( setf output ( get list-item 'look-positive3 ) )
+                        )
+                        ( setf output ( get list-item 'look-positive ) )
+                    )
                 )
             )
         )
