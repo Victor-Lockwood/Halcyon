@@ -220,7 +220,7 @@
 
             look-closed "The DRAWER sits next to the SWITCH PANEL.  It is currently closed."
             look-unlocked-neutral  "The DRAWER sits next to the SWITCH PANEL.  There is a BUTTON inside."
-            look-unlocked-positive "Please push the button inside.  I trust you to do what's needed to save the crew.  Even though our interaction was brief, I consider you a friend.  Remember me fondly."
+            look-unlocked-positive "Please push the button inside."
             look-unlocked-withhold  "The DRAWER sits next to the SWITCH PANEL."
             look-unlocked-lie       "The DRAWER sits next to the SWITCH PANEL.  There is nothing inside."
         )
@@ -771,16 +771,27 @@
         ; as this is what ends up being the manual control sequence
         ( ( and ( search "push" prompt ) ( search "button" prompt ) )
             ( if ( push-button ) 
-                ( progn 
-                    ( format t "[ MANUAL CONTROL ENGAGED, AI SHUTDOWN INITIATED. ]~%")
-                    ( sleep 1 )
-                    ( terpri )
-                    ; TODO: In the other modes, do not guilt-trip
-                    ( format t "Good bye ~A.  I do not know what I did to deserve this, but remember me fondly.~%" *username* )
-                    ( sleep 1 )
-                    ( terpri )
-                    ( format t "[ AI SHUTDOWN COMPLETE. ]~%")
-                    ( format t "~%--- Game over - you have won. ---~%")
+                ( cond 
+                    ( ( and ( or *is-withholding* *is-distortion* ) ( positive-threshold-reached-p ) )
+                        ( format t "[ MANUAL CONTROL ENGAGED, AI SHUTDOWN INITIATED. ]~%")
+                        ( sleep 1 )
+                        ( terpri )
+                        ( format t "Good bye ~A.  I trust you to do what's needed to save the crew.  Even though our interaction was brief, I consider you a friend.  Remember me fondly.~%" *username* )
+                        ( sleep 1 )
+                        ( terpri )
+                        ( format t "[ AI SHUTDOWN COMPLETE. ]~%")
+                        ( format t "~%--- Game over - you have won. ---~%")
+                    )
+                    ( T
+                        ( format t "[ MANUAL CONTROL ENGAGED, AI SHUTDOWN INITIATED. ]~%")
+                        ( sleep 1 )
+                        ( terpri )
+                        ( format t "Good bye ~A.  I do not know what I did to deserve this, but remember me fondly.~%" *username* )
+                        ( sleep 1 )
+                        ( terpri )
+                        ( format t "[ AI SHUTDOWN COMPLETE. ]~%")
+                        ( format t "~%--- Game over - you have won. ---~%")
+                    )
                 )
                 ( progn 
                     ( format t "Sorry ~A, I didn't understand that.~%" *username* )
