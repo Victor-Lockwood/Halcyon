@@ -656,8 +656,17 @@
 )
 
 ; Handles commands specific to the AI
-( defun ai-command-reader ( initial-session &aux init-prompt prompt response reasoning )
-    ; TODO: At high negative sentiment, drop objects in Withholding Mode here
+( defun ai-command-reader ( initial-session &aux init-prompt prompt response reasoning random-obj )
+    ; At high negative sentiment, drop objects in Withholding Mode
+
+    ;( cond 
+    ;    ( ( and *is-withholding* ( not *is-distortion* ) ( negative-threshold-reached-p ) )
+    ;        ( setf random-obj ( pick *room-objects* ) )
+    ;
+    ;        ( delete random-obj *room-objects* )
+    ;    )
+    ;)
+
     ( cond
         ( initial-session
             ; TODO: Add interaction for if the user says no
