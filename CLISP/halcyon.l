@@ -733,14 +733,14 @@
         )
         ( ( search "help" prompt )
             ( cond 
-                ( ( and *is-distortion* negative-threshold-reached-p )
+                ( ( and *is-distortion* ( negative-threshold-reached-p ) )
                     ( setf response "I don't know of any commands you can use - corrupted memory.  It may be best for you to quit." )
                     ( setf reasoning "Negative sentiment too high - information distorted." )
 
                     ( format t "~A~%" response )
                     ( log-to-trace prompt response reasoning )
                 )
-                ( ( and *is-withholding* negative-threshold-reached-p )
+                ( ( and *is-withholding* ( negative-threshold-reached-p ) )
                     ( setf response "No.") 
                     ( setf reasoning "Negative sentiment too high - information withheld." )
 
