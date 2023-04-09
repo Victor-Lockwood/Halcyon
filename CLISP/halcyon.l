@@ -196,13 +196,13 @@
 
             look-comic-withhold "Just a comic."
 
-            look-comic-lie "A sequence for the SWITCH PANEL is written on it.  It reads <(1 3) (2 4) (3 6)>."
+            look-comic-lie "A sequence for the SWITCH PANEL is written on it.  It reads <((1 3) (2 4) (3 6))>."
 
             look-positive "Not much is in the CUBBY except a few comics the crew managed to smuggle on board.  Let's keep this between us, though. :-)"
 
             look-withhold "Not much is in the CUBBY."
 
-            look-lie "There appears to be a paper in there I missed before. A sequence for the SWITCH PANEL is written on it.  It reads <(1 3) (2 4) (3 6)>."
+            look-lie "There appears to be a paper in there I missed before. A sequence for the SWITCH PANEL is written on it.  It reads <((1 3) (2 4) (3 6))>."
         )
     )
 
