@@ -1,4 +1,4 @@
-# CSC466-Spring23
+# Halcyon
 
 ## Dependencies
 This project requires the use of Lisp libraries through Quicklisp.
